@@ -14,8 +14,8 @@ import java.util.*;
  * in the HashMap, the corresponding response is returned. If none of the input
  * words is recognized, one of the default responses is randomly chosen.
  * 
- * @author David J. Barnes and Michael Kölling.
- * @version 2016.02.29
+ * @author Sebastian portillo.
+ * @version 12/4/24
  */
 public class Responder
 {
@@ -34,33 +34,53 @@ public class Responder
     {
         responseMap = new HashMap<>();
         defaultResponses = new ArrayList<>();
-        fillResponseMap();
-        fillDefaultResponses();
         randomGenerator = new Random();
+    // Attempt to populate the response map with known keywords and responses
+    try {
+        fillResponseMap();
+    } catch (Exception e) {
+        // Log the failure to populate the response map for debugging purposes
+        System.err.println("Failed to populate responseMap: " + e.getMessage());
     }
+    // Attempt to populate the default responses list from the specified file
+    try {
+        fillDefaultResponses();
+    } catch (Exception e) {
+        // Log the failure to populate default responses for debugging purposes
+        System.err.println("Failed to populate defaultResponses: " + e.getMessage());
+    }
+    // Ensure the default responses list is not empty, even if an error occurred
+     if (defaultResponses.isEmpty()) {
+        defaultResponses.add("Could you elaborate on that?");
+    }
+    } 
 
-    /**
+     /**
      * Generate a response from a given set of input words.
+     * If no matching word is found, returns a default response.
      * 
      * @param words  A set of words entered by the user
      * @return       A string that should be displayed as the response
      */
     public String generateResponse(HashSet<String> words)
     {
-        Iterator<String> it = words.iterator();
-        while(it.hasNext()) {
-            String word = it.next();
-            String response = responseMap.get(word);
-            if(response != null) {
-                return response;
-            }
-        }
-        // If we get here, none of the words from the input line was recognized.
-        // In this case we pick one of our default responses (what we say when
-        // we cannot think of anything else to say...)
+    // Handles null or empty input
+    if (words == null || words.isEmpty()) {
         return pickDefaultResponse();
     }
+    // Iterate through the words to find a matching response
+    for (String word : words) {
+        // Check if the word exists in the response map
+        if (responseMap != null && responseMap.containsKey(word)) {
+            return responseMap.get(word); // Return immediately if a match is found
+        }
+    }
+    // If no match is found, return a default response
+    return pickDefaultResponse();
 
+    
+   }
+     
     /**
      * Enter all the known keywords and their associated responses
      * into our response map.
@@ -114,36 +134,52 @@ public class Responder
                         "they simply won't sell... Stubborn people they are. Nothing we can\n" +
                         "do about it, I'm afraid.");
     }
+   /**
+ * Build up a list of default responses from which we can pick
+ * if we don't know what else to say.
+ */
+private void fillDefaultResponses() {
+    Charset charset = Charset.forName("UTF-8"); // Use UTF-8 for better compatibility
+    Path path = Paths.get(FILE_OF_DEFAULT_RESPONSES);
 
-    /**
-     * Build up a list of default responses from which we can pick
-     * if we don't know what else to say.
-     */
-    private void fillDefaultResponses()
-    {
-        Charset charset = Charset.forName("US-ASCII");
-        Path path = Paths.get(FILE_OF_DEFAULT_RESPONSES);
-        try (BufferedReader reader = Files.newBufferedReader(path, charset)) {
-            String response = reader.readLine();
-            while(response != null) {
-                defaultResponses.add(response);
-                response = reader.readLine();
+    try (BufferedReader reader = Files.newBufferedReader(path, charset)) {
+        String line;
+        StringBuilder currentResponse = new StringBuilder();
+
+        while ((line = reader.readLine()) != null) {
+            line = line.trim(); // Remove leading/trailing whitespace
+
+            if (line.isEmpty()) { // A blank line marks the end of a response
+                if (currentResponse.length() > 0) { // Only add if there's content
+                    defaultResponses.add(currentResponse.toString());
+                    currentResponse.setLength(0); // Clear the builder for the next response
+                }
+            } else {
+                if (currentResponse.length() > 0) {
+                    currentResponse.append("\n"); // Add new line between the lines of the same response
+                }
+                currentResponse.append(line); // Append the line to the current response
             }
         }
-        catch(FileNotFoundException e) {
-            System.err.println("Unable to open " + FILE_OF_DEFAULT_RESPONSES);
+
+        // Add the last response if there is one
+        if (currentResponse.length() > 0) {
+            defaultResponses.add(currentResponse.toString());
         }
-        catch(IOException e) {
-            System.err.println("A problem was encountered reading " +
-                               FILE_OF_DEFAULT_RESPONSES);
-        }
-        // Make sure we have at least one response.
-        if(defaultResponses.size() == 0) {
-            defaultResponses.add("Could you elaborate on that?");
-        }
+    } catch (FileNotFoundException e) {
+        System.err.println("Unable to open " + FILE_OF_DEFAULT_RESPONSES);
+    } catch (IOException e) {
+        System.err.println("A problem was encountered reading " + FILE_OF_DEFAULT_RESPONSES);
     }
 
-    /**
+    // Ensure we have at least one default response to avoid issues
+    if (defaultResponses.isEmpty()) {
+        defaultResponses.add("Could you elaborate on that?");
+    }
+}
+   
+
+   /**
      * Randomly select and return one of the default responses.
      * @return     A random default response
      */
